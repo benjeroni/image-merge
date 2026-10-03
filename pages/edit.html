@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}{{ slug }} · Email images{% endblock %}
+{% block content %}
+<h1>Draft: {{ slug }}</h1>
+<style>
+  .editor { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.25rem; align-items: start; }
+  @media (max-width: 900px) { .editor { grid-template-columns: 1fr; } }
+  #stage { position: relative; cursor: crosshair; touch-action: none; user-select: none; line-height: 0; }
+  #stage img { width: 100%; border-radius: 4px; }
+  #box { position: absolute; border: 2px dashed #fff; outline: 2px dashed #000; outline-offset: -4px; background: rgba(255,255,255,.12); pointer-events: none; }
+  #preview { max-width: 100%; border-radius: 4px; display: block; }
+  .names button { margin: .25rem .25rem 0 0; padding: .25rem .6rem; }
+</style>
+
+<form id="editor" method="post">
+  <input type="hidden" name="csrf" value="{{ session.csrf }}">
+  {% for k in ['x0', 'y0', 'x1', 'y1'] %}<input type="hidden" name="{{ k }}" value="{{ t.box[loop.index0] }}">{% endfor %}
+  <div class="editor">
+    <div>
+      <div class="card">
+        <h2>1. Where the text goes</h2>
+        <p class="hint">Click and drag on the image to draw the text area. Text is sized to fill it.</p>
+        {% if size_warning %}<p class="flash">{{ size_warning }}</p>{% endif %}
+        <div id="stage"><img id="bg" src="{{ url_for('admin.image', name=t.image) }}" alt="Background" draggable="false"><div id="box"></div></div>
+      </div>
+      <div class="card">
+        <h2>2. Message</h2>
+        <label for="message">Message <span class="hint">type {name} where the first name goes, up to {{ limits.MAX_MESSAGE }} characters</span></label>
+        <input type="text" id="message" name="message" value="{{ t.message }}" maxlength="{{ limits.MAX_MESSAGE }}" placeholder="Register for Orientation, {name}!">
+        <label for="fallback">Message when there's no usable name</label>
+        <input type="text" id="fallback" name="fallback" value="{{ t.fallback }}" maxlength="{{ limits.MAX_MESSAGE }}" placeholder="Register for Orientation!">
+      </div>
+      <div class="card">
+        <h2>3. Style</h2>
+        <div class="row">
+          <div>
+            <label for="font">Font</label>
+            <select id="font" name="font">
+              {% for f in fonts %}
+              <option value="{{ f.name }}" data-min="{{ f.weights[0] if f.weights }}" data-max="{{ f.weights[1] if f.weights }}" {{ 'selected' if f.name == t.font }}>{{ f.name.rsplit('.', 1)[0] }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label for="weight">Weight <span class="hint" id="weight-hint"></span></label>
+            <input type="number" id="weight" name="weight" value="{{ t.weight if t.weight is not none }}" step="100">
+          </div>
+          <div>
+            <label for="color">Colour</label>
+            <input type="color" id="color" name="color" value="{{ t.color | lower }}">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="align">Horizontal</label>
+            <select id="align" name="align">{% for v in ['left', 'center', 'right'] %}<option {{ 'selected' if v == t.align }}>{{ v }}</option>{% endfor %}</select>
+          </div>
+          <div>
+            <label for="valign">Vertical</label>
+            <select id="valign" name="valign">{% for v in ['top', 'middle', 'bottom'] %}<option {{ 'selected' if v == t.valign }}>{{ v }}</option>{% endfor %}</select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="max_size">Largest text size</label>
+            <input type="number" id="max_size" name="max_size" value="{{ t.max_size }}" min="{{ limits.FONT_SIZE[0] }}" max="{{ limits.FONT_SIZE[1] }}">
+          </div>
+          <div>
+            <label for="min_size">Smallest text size</label>
+            <input type="number" id="min_size" name="min_size" value="{{ t.min_size }}" min="{{ limits.FONT_SIZE[0] }}" max="{{ limits.FONT_SIZE[1] }}">
+          </div>
+          <div>
+            <label for="line_spacing">Line spacing</label>
+            <input type="number" id="line_spacing" name="line_spacing" value="{{ t.line_spacing }}" min="1" max="1.6" step="0.05">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Preview <span class="hint">shown at email size</span></h2>
+        <label for="preview_name">Test name</label>
+        <input type="text" id="preview_name" name="preview_name" value="Christopher" maxlength="40">
+        <div class="names">
+          {% for n in ['Christopher', 'Ben', 'Maximilian-Alexander', 'José', ''] %}<button type="button" class="secondary" data-name="{{ n }}">{{ n or '(no name)' }}</button>{% endfor %}
+        </div>
+        <ul class="errors" id="errors">{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+        <img id="preview" alt="Preview" style="width: {{ width // 2 }}px">
+      </div>
+      <div class="card">
+        <button name="action" value="save" class="secondary">Save draft</button>
+        <button name="action" value="publish" onclick="return confirm('Publish {{ slug }}? Once live it can\'t be edited, only duplicated.')">Publish</button>
+        <p class="hint">Publishing makes <code>/{{ slug }}.jpg</code> live immediately. Live templates are locked because emails already sent keep using them.</p>
+      </div>
+    </div>
+  </div>
+</form>
+
+<div class="card">
+  <h2>Replace background</h2>
+  <form method="post" action="{{ url_for('admin.replace_image', slug=slug) }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="file" name="image" accept="image/png,image/jpeg" required>
+    <button class="secondary">Upload</button>
+  </form>
+</div>
+
+<script>
+const W = {{ width }}, H = {{ height }}, M = {{ limits.MIN_MARGIN }};
+const form = document.getElementById('editor'), stage = document.getElementById('stage'), bg = document.getElementById('bg');
+const box = document.getElementById('box'), preview = document.getElementById('preview'), errors = document.getElementById('errors');
+const corners = ['x0', 'y0', 'x1', 'y1'].map(k => form.elements[k]);
+
+function showBox() {
+  const s = bg.clientWidth / W, [x0, y0, x1, y1] = corners.map(i => +i.value);
+  Object.assign(box.style, {left: x0 * s + 'px', top: y0 * s + 'px', width: (x1 - x0) * s + 'px', height: (y1 - y0) * s + 'px'});
+}
+function imagePoint(e) {
+  const r = bg.getBoundingClientRect(), s = W / r.width;
+  return [Math.min(W - M, Math.max(M, Math.round((e.clientX - r.left) * s))),
+          Math.min(H - M, Math.max(M, Math.round((e.clientY - r.top) * s)))];
+}
+let start = null, before = null;
+stage.addEventListener('pointerdown', e => {
+  e.preventDefault(); stage.setPointerCapture(e.pointerId);
+  start = imagePoint(e); before = corners.map(i => i.value);
+});
+stage.addEventListener('pointermove', e => {
+  if (!start) return;
+  const p = imagePoint(e);
+  const [x0, x1] = [start[0], p[0]].sort((a, b) => a - b), [y0, y1] = [start[1], p[1]].sort((a, b) => a - b);
+  [x0, y0, x1, y1].forEach((v, i) => corners[i].value = v);
+  showBox();
+});
+stage.addEventListener('pointerup', () => {
+  if (!start) return;
+  start = null;
+  const [x0, y0, x1, y1] = corners.map(i => +i.value);
+  if (x1 - x0 < 40 || y1 - y0 < 20) { before.forEach((v, i) => corners[i].value = v); showBox(); return; }  // a click, not a drag
+  refresh();
+});
+
+const fontSelect = form.elements.font, weight = form.elements.weight, weightHint = document.getElementById('weight-hint');
+function syncWeight() {
+  const o = fontSelect.selectedOptions[0], variable = o && o.dataset.min;
+  weight.disabled = !variable;
+  weight.min = o ? o.dataset.min : ''; weight.max = o ? o.dataset.max : '';
+  if (variable && !weight.value) weight.value = 400;
+  weightHint.textContent = variable ? `${o.dataset.min}–${o.dataset.max}` : 'this font has one weight';
+}
+
+let timer, latest = 0;
+function schedule() { clearTimeout(timer); timer = setTimeout(refresh, 350); }
+async function refresh() {
+  const id = ++latest;
+  const r = await fetch('{{ url_for("admin.preview", slug=slug) }}', {method: 'POST', body: new FormData(form)});
+  if (id !== latest) return;  // a newer preview is on its way
+  if (r.ok) {
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    preview.src = URL.createObjectURL(await r.blob());
+    errors.replaceChildren();
+  } else if (r.status === 422) {
+    errors.replaceChildren(...(await r.json()).errors.map(t => Object.assign(document.createElement('li'), {textContent: t})));
+  } else {
+    errors.replaceChildren(Object.assign(document.createElement('li'), {textContent: `Preview failed (${r.status}). Reload the page.`}));
+  }
+}
+document.querySelectorAll('[data-name]').forEach(b => b.addEventListener('click', () => {
+  form.elements.preview_name.value = b.dataset.name; refresh();
+}));
+fontSelect.addEventListener('change', syncWeight);
+form.addEventListener('input', schedule);
+form.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') e.preventDefault(); });
+window.addEventListener('resize', showBox);
+bg.complete ? showBox() : bg.addEventListener('load', showBox);
+syncWeight(); refresh();
+</script>
+{% endblock %}

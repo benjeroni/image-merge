@@ -1,0 +1,14 @@
+{
+  "image": "orientation.png",
+  "font": "LibreFranklin.ttf",
+  "weight": 500,
+  "message": "Register for Orientation, {name}!",
+  "fallback": "Register for Orientation!",
+  "box": [32, 32, 216, 468],
+  "align": "left",
+  "valign": "middle",
+  "color": "#FFFFFF",
+  "min_size": 22,
+  "max_size": 52,
+  "line_spacing": 1.15
+}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Fonts</h2>
+  <table>
+    {% for f in fonts %}
+    <tr><td>{{ f.name }}</td><td class="hint">{% if f.weights %}variable, weights {{ f.weights[0] }}–{{ f.weights[1] }}{% else %}single weight{% endif %}</td></tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h2>Install a font</h2>
+  <p class="hint">.ttf or .otf. Make sure the college's licence allows using it to generate images on a server.
+    Installed fonts can't be replaced, because live templates depend on them. Upload a new version under a new file name.</p>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <input type="file" name="font" accept=".ttf,.otf" required>
+    <button>Install</button>
+  </form>
+</div>
+{% endblock %}

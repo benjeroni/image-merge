@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>Staff accounts</h2>
+  <table>
+    {% for u in users %}
+    <tr>
+      <td>{{ u.username }}{% if u.is_admin %} <span class="hint">(admin)</span>{% endif %}</td>
+      <td>
+        <form class="inline" method="post">
+          <input type="hidden" name="csrf" value="{{ session.csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
+          <input type="password" name="password" placeholder="New password" autocomplete="new-password" minlength="10" style="width: 12rem" required>
+          <button name="action" value="reset" class="secondary">Reset password</button>
+        </form>
+      </td>
+      <td>
+        {% if u.username != g.user.username %}
+        <form class="inline" method="post" onsubmit="return confirm('Remove {{ u.username }}?')">
+          <input type="hidden" name="csrf" value="{{ session.csrf }}"><input type="hidden" name="username" value="{{ u.username }}">
+          <button name="action" value="delete" class="danger">Remove</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+<div class="card">
+  <h2>Add someone</h2>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <div class="row">
+      <div><label for="username">Username</label><input type="text" id="username" name="username" pattern="[a-z0-9][a-z0-9\-]*" required></div>
+      <div><label for="password">Temporary password <span class="hint">10+ characters; they can change it under their name</span></label>
+        <input type="password" id="password" name="password" minlength="10" autocomplete="new-password" required></div>
+    </div>
+    <label><input type="checkbox" name="is_admin" value="1"> Admin <span class="hint">can manage users and fonts, and take live templates offline</span></label>
+    <p><button name="action" value="add">Add</button></p>
+  </form>
+</div>
+{% endblock %}

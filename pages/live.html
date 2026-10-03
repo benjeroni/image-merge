@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ slug }} · Email images{% endblock %}
+{% block content %}
+<h1>Live: {{ slug }}</h1>
+{% if not ok %}<div class="flash">This template is not being served right now. Ask an admin to check the Templates page.</div>{% endif %}
+<div class="card">
+  <h2>Try it</h2>
+  <label for="name">Test name</label>
+  <input type="text" id="name" value="Christopher" maxlength="40" style="max-width: 20rem">
+  <p><img id="img" src="{{ src }}?name=Christopher" alt="{{ t.fallback }}" style="width: {{ width // 2 }}px; max-width: 100%"></p>
+  <p class="hint">Message: {{ t.message }}<br>Without a name: {{ t.fallback }}<br>
+    Published by {{ (t.meta or {}).published_by or '?' }} {{ ((t.meta or {}).published_at or '')[:10] }}</p>
+</div>
+<div class="card">
+  <h2>Constant Contact</h2>
+  <p>In your email, add a <strong>Custom code</strong> (HTML) block and paste this. Constant Contact puts each contact's first name into it when it sends.</p>
+  <textarea id="snippet" rows="4" readonly>{{ snippet }}</textarea>
+  <p><button type="button" id="copy">Copy</button>
+  <span class="hint">Add a normal text link or button under the image too, for readers whose email blocks images.</span></p>
+</div>
+<div class="card">
+  <h2>Need changes?</h2>
+  <p class="hint">Live templates can't be edited (emails already sent keep using them). Copy it to a new draft instead.</p>
+  <form method="post" action="{{ url_for('admin.duplicate', slug=slug) }}" class="row" style="align-items: end">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <div><label for="new_slug">New name</label><input type="text" id="new_slug" name="new_slug" value="{{ copy_name }}" pattern="[a-z0-9][a-z0-9\-]*" maxlength="50" required></div>
+    <div><button>Copy to new draft</button></div>
+  </form>
+  <form method="post" action="{{ url_for('admin.archive', slug=slug) }}">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">{% if archived %}<input type="hidden" name="restore" value="1">{% endif %}
+    <p><button class="secondary">{{ 'Restore from archive' if archived else 'Archive' }}</button>
+    <span class="hint">{{ 'This template is archived.' if archived else 'Hides it from the Templates list.' }} Its image keeps working in emails already sent.</span></p>
+  </form>
+  {% if g.user.is_admin %}
+  <form method="post" action="{{ url_for('admin.delete', slug=slug) }}" onsubmit="return confirm('Take {{ slug }} offline? Every email already sent with it will show a broken image.')">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}"><input type="hidden" name="which" value="live">
+    <p><button class="danger">Take offline (admin)</button></p>
+  </form>
+  {% endif %}
+</div>
+<script>
+const img = document.getElementById('img');
+let t;
+document.getElementById('name').addEventListener('input', e => {
+  clearTimeout(t);
+  t = setTimeout(() => img.src = '{{ src }}?name=' + encodeURIComponent(e.target.value), 300);
+});
+document.getElementById('copy').addEventListener('click', async e => {
+  await navigator.clipboard.writeText(document.getElementById('snippet').value);
+  e.target.textContent = 'Copied';
+});
+</script>
+{% endblock %}

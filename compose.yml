@@ -1,0 +1,29 @@
+# image-merge.biel.casa, behind Traefik on the Unraid box.
+# Traefik values (network, entrypoint, certresolver, middleware) mirror unraid-stats' compose.yml.
+#
+# Deployed by ./deploy-to-unraid.sh to /mnt/user/appdata/image-merge (image built on the VM, shipped over ssh).
+# ./data holds everything (templates, images, fonts, staff accounts); back it up.
+
+services:
+  image-merge:
+    image: image-merge:latest
+    container_name: image-merge
+    restart: unless-stopped
+    environment:
+      PUBLIC_URL: https://image-merge.biel.casa
+    volumes:
+      - ./data:/data
+    networks:
+      - arr
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.image-merge.rule=Host(`image-merge.biel.casa`)"
+      - "traefik.http.routers.image-merge.entryPoints=https"
+      - "traefik.http.routers.image-merge.tls=true"
+      - "traefik.http.routers.image-merge.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.image-merge.middlewares=secure-headers@file"
+      - "traefik.http.services.image-merge.loadbalancer.server.port=8000"
+
+networks:
+  arr:
+    external: true

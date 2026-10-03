@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width: 420px">
+  <h2>Change password</h2>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <label for="current">Current password</label>
+    <input type="password" id="current" name="current" autocomplete="current-password" required>
+    <label for="new">New password <span class="hint">10+ characters</span></label>
+    <input type="password" id="new" name="new" minlength="10" autocomplete="new-password" required>
+    <p><button>Change password</button></p>
+  </form>
+</div>
+{% endblock %}

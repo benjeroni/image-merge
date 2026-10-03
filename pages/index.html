@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h2>New template</h2>
+  <form method="post" action="{{ url_for('admin.new') }}" enctype="multipart/form-data">
+    <input type="hidden" name="csrf" value="{{ session.csrf }}">
+    <div class="row">
+      <div>
+        <label for="slug">Name <span class="hint">lowercase, dashes, e.g. fall-orientation. This becomes part of the image link.</span></label>
+        <input type="text" id="slug" name="slug" pattern="[a-z0-9][a-z0-9\-]*" maxlength="50" required>
+      </div>
+      <div>
+        <label for="image">Background image <span class="hint">PNG or JPEG at twice the size it should appear in the email (e.g. 1200×400 for a 600×200 banner)</span></label>
+        <input type="file" id="image" name="image" accept="image/png,image/jpeg" required>
+      </div>
+    </div>
+    <p><button>Create draft</button></p>
+  </form>
+</div>
+
+{% macro copy_button(slug) %}
+<form class="inline" method="post" action="{{ url_for('admin.duplicate', slug=slug) }}" onsubmit="return askName(this)">
+  <input type="hidden" name="csrf" value="{{ session.csrf }}"><input type="hidden" name="new_slug" value="{{ next_free(slug) }}">
+  <button class="secondary">Copy</button>
+</form>
+{% endmacro %}
+{% macro archive_button(slug, restore=False) %}
+<form class="inline" method="post" action="{{ url_for('admin.archive', slug=slug) }}">
+  <input type="hidden" name="csrf" value="{{ session.csrf }}">{% if restore %}<input type="hidden" name="restore" value="1">{% endif %}
+  <button class="secondary">{{ 'Restore' if restore else 'Archive' }}</button>
+</form>
+{% endmacro %}
+
+<div class="card">
+  <h2>Drafts</h2>
+  {% if drafts %}
+  <table>
+    {% for slug in drafts %}
+    <tr>
+      <td><a href="{{ url_for('admin.edit', slug=slug) }}">{{ slug }}</a></td>
+      <td style="text-align:right">
+        {{ copy_button(slug) }} {{ archive_button(slug) }}
+        <form class="inline" method="post" action="{{ url_for('admin.delete', slug=slug) }}" onsubmit="return confirm('Delete draft {{ slug }}?')">
+          <input type="hidden" name="csrf" value="{{ session.csrf }}"><input type="hidden" name="which" value="draft">
+          <button class="danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="hint">No drafts.</p>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Live</h2>
+  {% if rejected %}
+  <ul class="errors">{% for file, errs in rejected.items() %}<li>{{ file }} isn't being served: {{ errs | join('; ') }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if live %}
+  <table>
+    {% for slug, meta in live %}
+    <tr>
+      <td><a href="{{ url_for('admin.live_view', slug=slug) }}"><img class="thumb" src="/{{ slug }}.jpg?name=Christopher" alt="{{ slug }}"></a></td>
+      <td><a href="{{ url_for('admin.live_view', slug=slug) }}">{{ slug }}</a><br>
+        <span class="hint">published by {{ meta.published_by or '?' }}{% if meta.published_at %} on {{ meta.published_at[:10] }}{% endif %}</span></td>
+      <td style="text-align:right">{{ copy_button(slug) }} {{ archive_button(slug) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% else %}<p class="hint">Nothing live.</p>{% endif %}
+</div>
+
+{% if archived %}
+<details class="card">
+  <summary><strong>Archived ({{ archived | length }})</strong> <span class="hint">hidden from the lists above; archived live images still work in emails already sent</span></summary>
+  <table>
+    {% for slug, kind in archived %}
+    <tr>
+      <td><a href="{{ url_for('admin.edit', slug=slug) if kind == 'draft' else url_for('admin.live_view', slug=slug) }}">{{ slug }}</a> <span class="hint">{{ kind }}</span></td>
+      <td style="text-align:right">{{ copy_button(slug) }} {{ archive_button(slug, restore=True) }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+</details>
+{% endif %}
+
+<script>
+function askName(form) {
+  const name = prompt('Name for the copy (lowercase letters, digits and dashes):', form.new_slug.value);
+  if (!name) return false;
+  form.new_slug.value = name.trim().toLowerCase();
+  return true;
+}
+</script>
+{% endblock %}
